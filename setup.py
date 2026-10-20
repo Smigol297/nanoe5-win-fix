@@ -57,22 +57,18 @@ def _compiles(cc, flags):
 class BuildEngine(build_ext):
     def build_extensions(self):
         is_msvc = self.compiler.compiler_type == 'msvc'
+        cc = os.environ.get("CC") or self.compiler.compiler[0]
 
         if is_msvc:
-            # MSVC: flags de Microsoft. Sin libm (está en el CRT).
             cflags = ["/O2", "/fp:fast"]
             lflags = []
-            # OpenMP: MSVC lo soporta con /openmp.
-            if _compiles(self.compiler.cc, ["/openmp"]):
+            if _compiles(cc, ["/openmp"]):
                 cflags.append("/openmp")
-            # MSVC no tiene -march=native. Usar /arch:AVX2 si está disponible.
             arch = os.environ.get("NANOE5_ARCH", "native").lower()
             if arch in ("native", "avx2"):
-                if _compiles(self.compiler.cc, ["/arch:AVX2"]):
+                if _compiles(cc, ["/arch:AVX2"]):
                     cflags.append("/arch:AVX2")
         else:
-            # GCC / Clang (Linux/macOS): flags Unix.
-            cc = os.environ.get("CC") or self.compiler.compiler[0]
             cflags = ["-O3", "-funroll-loops", "-ffast-math"]
             lflags = ["-lm"]
             if _compiles(cc, ["-fopenmp"]):
