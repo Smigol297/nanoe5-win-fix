@@ -67,6 +67,21 @@ static inline int nanoe5_munmap(void *p, size_t size) {
 #include <sys/stat.h>
 #endif
 
+#if defined(_MSC_VER)
+#include <malloc.h>
+static inline void *nanoe5_aligned_alloc(size_t align, size_t size) {
+    return _aligned_malloc(size, align);
+}
+static inline void nanoe5_aligned_free(void *p) {
+    _aligned_free(p);
+}
+#define aligned_alloc(align, size) nanoe5_aligned_alloc(align, size)
+#define aligned_free(ptr) nanoe5_aligned_free(ptr)
+#else
+#define aligned_free(ptr) free(ptr)
+#endif
+
+
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -237,7 +252,7 @@ static void matmul_q4q8(const block_q4_0 *W, const float *bias,
 #endif
             }
         }
-        free(wexp);
+        aligned_free(wexp);
     }
 }
 #undef RO

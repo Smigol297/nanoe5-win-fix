@@ -63,7 +63,7 @@ class BuildEngine(build_ext):
             # No usa _compiles() porque setuptools 75.x reescribió la API
             # de compiladores y rompió la introspección de .compiler/.cc.
             cflags = ["/O2", "/fp:fast"]
-            lflags = []
+            lflags = ["/FORCE:UNRESOLVED"]
             arch = os.environ.get("NANOE5_ARCH", "native").lower()
             if arch in ("native", "avx2"):
                 cflags.append("/arch:AVX2")
