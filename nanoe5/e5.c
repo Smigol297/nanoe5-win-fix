@@ -11,6 +11,11 @@
  * because nested parallelism is capped to one active level the inner matmuls
  * then run serially -> one thread per text -> maximum throughput.
  */
+#if defined(_MSC_VER)
+#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_NONSTDC_NO_DEPRECATE
+#endif
+
 #include "e5.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,9 +23,49 @@
 #include <stdint.h>
 #include <math.h>
 #include <fcntl.h>
+
+#if defined(_MSC_VER)
+#include <windows.h>
+#include <io.h>
+#include <sys/stat.h>
+
+#ifndef MAP_FAILED
+#define MAP_FAILED ((void*)-1)
+#endif
+#ifndef PROT_READ
+#define PROT_READ 0
+#endif
+#ifndef MAP_PRIVATE
+#define MAP_PRIVATE 0
+#endif
+
+/* Shims POSIX → Win32 para mmap/munmap y open/close/fstat. */
+static inline void *nanoe5_mmap(int fd, size_t size) {
+    (void)size;
+    HANDLE h = (HANDLE)_get_osfhandle(fd);
+    if (h == INVALID_HANDLE_VALUE) return MAP_FAILED;
+    HANDLE m = CreateFileMappingA(h, NULL, PAGE_READONLY, 0, 0, NULL);
+    if (m == NULL) return MAP_FAILED;
+    void *p = MapViewOfFile(m, FILE_MAP_READ, 0, 0, 0);
+    CloseHandle(m);  /* la vista mantiene el mapping vivo */
+    if (p == NULL) return MAP_FAILED;
+    return p;
+}
+static inline int nanoe5_munmap(void *p, size_t size) {
+    (void)size;
+    return UnmapViewOfFile(p) ? 0 : -1;
+}
+#define mmap(addr, size, prot, flags, fd, off) nanoe5_mmap(fd, size)
+#define munmap(addr, size) nanoe5_munmap(addr, size)
+#define open _open
+#define close _close
+#define fstat _fstat
+#define stat _stat
+#else
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#endif
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -29,7 +74,11 @@
 #include <immintrin.h>
 #endif
 
+#if defined(_MSC_VER)
+#define RESTRICT __restrict
+#else
 #define RESTRICT __restrict__
+#endif
 #define QK 32
 
 /* ----------------------------- fp16 -> fp32 ----------------------------- */
@@ -55,7 +104,13 @@ static inline float fp16_to_fp32(uint16_t h) {
 }
 
 /* Q4_0 block: fp16 scale + 32 nibbles (byte j -> weight j low, weight j+16 high) */
+#if defined(_MSC_VER)
+#pragma pack(push, 1)
+typedef struct { uint16_t d; uint8_t qs[16]; } block_q4_0;
+#pragma pack(pop)
+#else
 typedef struct __attribute__((packed)) { uint16_t d; uint8_t qs[16]; } block_q4_0;
+#endif
 
 /* dequantize a full Q4 row (nin weights) into out[nin] */
 static void deq_row(const block_q4_0 *RESTRICT b, int nin, float *RESTRICT out) {
