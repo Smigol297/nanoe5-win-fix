@@ -57,18 +57,21 @@ def _compiles(cc, flags):
 class BuildEngine(build_ext):
     def build_extensions(self):
         is_msvc = self.compiler.compiler_type == 'msvc'
-        cc = os.environ.get("CC") or self.compiler.compiler[0]
 
         if is_msvc:
+            # MSVC: flags hardcodeadas (VS2022 en GHA las soporta todas).
+            # No usa _compiles() porque setuptools 75.x reescribió la API
+            # de compiladores y rompió la introspección de .compiler/.cc.
             cflags = ["/O2", "/fp:fast"]
             lflags = []
-            if _compiles(cc, ["/openmp"]):
-                cflags.append("/openmp")
             arch = os.environ.get("NANOE5_ARCH", "native").lower()
             if arch in ("native", "avx2"):
-                if _compiles(cc, ["/arch:AVX2"]):
-                    cflags.append("/arch:AVX2")
+                cflags.append("/arch:AVX2")
+            # Nota: /openmp omitido (vcomp140.dll puede no estar bundleado
+            # en PyInstaller). Si hace falta performance, agregar "/openmp".
         else:
+            # GCC/Clang (Linux/macOS): comportamiento original.
+            cc = os.environ.get("CC") or self.compiler.compiler[0]
             cflags = ["-O3", "-funroll-loops", "-ffast-math"]
             lflags = ["-lm"]
             if _compiles(cc, ["-fopenmp"]):
