@@ -1000,3 +1000,11 @@ int main(int argc, char **argv) {
     return 0;
 }
 #endif
+/* nanoe5 se carga con ctypes, no con import de Python.
+ * setuptools agrega /EXPORT:PyInit__engine al link, pero esa funcion
+ * no existe porque no es una extension Python real. Stub para satisfacer
+ * al linker en Windows. */
+#if defined(_MSC_VER)
+typedef struct _object PyObject;
+__declspec(dllexport) PyObject *PyInit__engine(void) { return 0; }
+#endif
