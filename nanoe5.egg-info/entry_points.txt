@@ -1,0 +1,2 @@
+[console_scripts]
+nanoe5-serve = nanoe5.server:main
